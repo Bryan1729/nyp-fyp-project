@@ -44,8 +44,6 @@ chat_db = Chroma(
 
 def dataProcessing(file, collection=chat_db):
 
-    keywords_bank = []
-
     # extract text from file
     document = ExtractText(file)
     
@@ -53,6 +51,8 @@ def dataProcessing(file, collection=chat_db):
     document = OpenAIMetadataTagger(document)
     #print(document[0].metadata)
     #print('\n')
+
+    keywords_bank = []
     
     for doc in document:
         if "keywords" in doc.metadata:
@@ -60,6 +60,11 @@ def dataProcessing(file, collection=chat_db):
             for i in range(len(doc.metadata['keywords'])):
                 doc.metadata[f'keyword{i}'] = doc.metadata['keywords'][i]
             doc.metadata["keywords"] = ", ".join(doc.metadata["keywords"])
+
+    with shelve.open(KEYWORDS_DATABANK_PATH) as db:
+        existing_keywords = db.get('keywords', [])
+        updated_keywords = list(set(existing_keywords + keywords_bank))
+        db['keywords'] = updated_keywords
 
     #These are put in here for posterity but are weaker and less useful than OpenAIMetadataTagger and thus removed
     '''document[0].metadata['keywords'] = KeyBERTMetadataTagger(document[0].page_content)
@@ -83,16 +88,6 @@ def dataProcessing(file, collection=chat_db):
 
     # create and populate the vector database with document embeddings
     databaseInsertion(batches=batches, collection=collection)
-
-    db = shelve.open(KEYWORDS_DATABANK_PATH)
-    x = db.get('keywords')
-    if x == None:
-        x = keywords_bank
-    else:
-        x.extend(keywords_bank)
-        x = list(set(x))
-    db['keywords'] = x
-    db.close()
 
 # function to load files using an extension of unstructured partition with langchain's document loaders
 def ExtractText(path: str):
